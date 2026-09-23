@@ -591,3 +591,13 @@ decision is made. Keep them short.
 - Dedicated Home/Dashboard landing page vs landing on Watchlist.
 - Consistent search placeholder text.
 - Logo placement (sidebar vs top bar).
+
+## ADR-026 - AI research evidence boundary and paper-only transport
+
+Add research services alongside the existing dashboard rather than replacing its stores or broker integration. Research uses validated nullable evidence and source timestamps; daily indicators exclude the current partial session. Keep research owner-authenticated and order-free. Reject non-official Alpaca hosts, live trading destinations and redirects at the shared transport. Default AI operation remains disabled RESEARCH_ONLY. Durable journal, risk controls and reconciliation must precede any automated execution. See [the phased architecture review](09-ai-trading-architecture.md) for file plans, conventions and remaining gates.
+
+## ADR-027 - Durable local research, risk and paper execution
+
+Implement the remaining AI-agent phases as small server modules and an additive AI Research route. Use Node SQLite with FULL synchronous WAL, immutable decisions/events, a unique client-order intent and an execution lease. Reserve before broker submission and reconcile ambiguous outcomes without retries. The existing Alpaca wrapper remains the only submission implementation. The model receives no trading tools and returns schema-validated, evidence-cited research. Deterministic strategy/risk code is shared by paper and offline replay.
+
+Every restart pauses the local agent in RESEARCH_ONLY. MANUAL_APPROVAL revalidates fresh inputs; AUTO_PAPER requires explicit environment and dashboard opt-ins. Emergency stop never liquidates. Netlify does not initialize the SQLite/scheduler runtime. Analytics attribute fill P/L to agent trades, keep account equity distinct, and return null for missing marks. Replay uses archived availability timestamps and next-open fills, never today's fundamentals for past decisions. See [the operational guide](10-ai-agent-setup.md) for test coverage and remaining modeling limits.

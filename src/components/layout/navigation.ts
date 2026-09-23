@@ -11,6 +11,7 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
+  { label: 'AI Research', icon: 'pi pi-sparkles', to: '/ai-research' },
   { label: 'Watchlist', icon: 'pi pi-star', to: '/', exact: true },
   { label: 'Portfolio', icon: 'pi pi-chart-pie', to: '/portfolio' },
   { label: 'Orders', icon: 'pi pi-receipt', to: '/orders' },

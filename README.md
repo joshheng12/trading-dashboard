@@ -59,8 +59,8 @@ for the full reasoning, and the rest of [`docs/`](docs/README.md) for the design
 feature list, and the full decision log.
 
 > **Known limitations (by design, documented in ADR-021):** the Finnhub WebSocket key is
-> visible in the client bundle (read-only, no trading power — quota risk only), and the BFF
-> is unauthenticated (it's a single shared **paper** account with no real money at stake).
+> visible in the client bundle (read-only, no trading power — quota risk only). Existing account
+> and order reads are public; order writes and all agent controls require owner authentication.
 
 ## Getting started
 
@@ -116,3 +116,19 @@ Detailed docs live in [`docs/`](docs/README.md): [overview](docs/01-overview.md)
 
 This is a portfolio project. All trading is **paper trading** (Alpaca paper account) —
 no real money is ever involved.
+
+## AI research and paper-trading agent
+
+Open **AI Research** (`/ai-research`) after signing in. The local Node server now supports
+validated AI reports, deterministic scanning/regime/strategy, independent risk and sizing,
+manual paper approval, a durable SQLite journal, controls/emergency stop, performance/daily
+reviews, an opt-in scheduler, and historical replay using the same strategy/risk functions.
+Existing manual dashboard trading remains available. Live/custom Alpaca hosts are rejected.
+
+The agent starts **PAUSED / RESEARCH_ONLY** on every restart. `.env.example` documents the
+disabled defaults and server-only AI configuration (`OPENAI_API_KEY`, `OPENAI_RESEARCH_MODEL`).
+See [local setup, modes, recovery and limitations](docs/10-ai-agent-setup.md) and
+[the architecture review](docs/09-ai-trading-architecture.md). No API secrets go to the browser.
+The durable agent is local-only; existing Netlify dashboard deployment does not run it.
+`npm run backtest -- archived-frames.json results.json` runs offline replay. Tests mock
+providers and never submit real or paper trades to an external broker.

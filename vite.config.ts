@@ -22,6 +22,8 @@ export default defineConfig({
       '/api': {
         target: `http://localhost:${process.env.PORT ?? 8787}`,
         changeOrigin: true,
+        // Agent origin validation needs the browser-facing host, including the Vite port.
+        xfwd: true,
       },
     },
   },

@@ -3,7 +3,7 @@
 `xtrading` is a stock trading dashboard built as a portfolio project. This `docs/`
 directory is the single source of truth for the project's goals, decisions, and design.
 
-> Status: **early / pre-development (design phase)**
+> Status: functional dashboard plus local AI research and opt-in paper-trading agent.
 
 ## Index
 
@@ -16,6 +16,8 @@ directory is the single source of truth for the project's goals, decisions, and 
 | [05-features.md](./05-features.md) | Pages / information architecture and feature list |
 | [06-roadmap.md](./06-roadmap.md) | Phased plan and milestones |
 | [07-decisions.md](./07-decisions.md) | Architecture Decision Records (ADRs) |
+| [09-ai-trading-architecture.md](./09-ai-trading-architecture.md) | Repository review, execution boundaries and phased extension |
+| [10-ai-agent-setup.md](./10-ai-agent-setup.md) | Local AI setup, operating modes, recovery, analytics and replay |
 
 ## Design mockups
 

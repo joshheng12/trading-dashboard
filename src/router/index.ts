@@ -14,6 +14,12 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/ai-research',
+      name: 'ai-research',
+      component: () => import('@/views/AIResearchView.vue'),
+      meta: { title: 'AI Research' },
+    },
+    {
       path: '/',
       name: 'watchlist',
       component: WatchlistView,

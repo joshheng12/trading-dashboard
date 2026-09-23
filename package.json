@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "backtest": "tsx server/backtest/cli.ts",
     "dev": "run-p dev:web dev:api",
     "dev:web": "vite",
     "dev:api": "tsx watch server/index.ts",

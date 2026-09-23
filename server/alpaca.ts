@@ -84,7 +84,38 @@ export function fetchBars(symbol: string, timeframeId: ChartTimeframeId): Promis
     return Promise.reject(new ProviderError(400, `Unknown chart timeframe: ${timeframeId}`))
   }
 
-  return cached(`bars:${symbol}:${timeframeId}`, spec.ttlMs, async () => {
+  return fetchBarWindow(symbol, spec, `bars:${symbol}:${timeframeId}`)
+}
+
+/** Extra daily history keeps the current partial session out of research indicators. */
+export function fetchResearchBars(symbol: string): Promise<Candle[]> {
+  return fetchBarWindow(
+    symbol,
+    { timeframe: '1Day', limit: 300, lookbackMs: 500 * DAY_MS, ttlMs: 60_000 },
+    `research-bars:${symbol}`,
+  )
+}
+
+/** Shared exchange sessions let research reject gaps rather than treating missing days as trading days. */
+export function fetchResearchCalendar(): Promise<string[]> {
+  return cached('research-calendar', 3_600_000, async () => {
+    const url = new URL(`${ALPACA_TRADING_URL}/v2/calendar`)
+    url.searchParams.set('start', new Date(Date.now() - 500 * DAY_MS).toISOString().slice(0, 10))
+    url.searchParams.set('end', new Date().toISOString().slice(0, 10))
+    const rows = await alpacaRequest<unknown>(url)
+    if (
+      !Array.isArray(rows) ||
+      rows.some(
+        (row) => !row || typeof row.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(row.date),
+      )
+    )
+      throw new Error('Invalid market calendar')
+    return rows.map((row) => String(row.date)).sort()
+  })
+}
+
+function fetchBarWindow(symbol: string, spec: BarSpec, cacheKey: string): Promise<Candle[]> {
+  return cached(cacheKey, spec.ttlMs, async () => {
     const url = new URL(`${ALPACA_DATA_URL}/v2/stocks/${encodeURIComponent(symbol)}/bars`)
     url.searchParams.set('timeframe', spec.timeframe)
     url.searchParams.set('feed', 'iex')
@@ -97,9 +128,7 @@ export function fetchBars(symbol: string, timeframeId: ChartTimeframeId): Promis
     const bars = data.bars ?? []
 
     // Alpaca returns newest-first (sort=desc); the chart wants oldest→newest.
-    return bars
-      .map(toCandle)
-      .sort((a, b) => a.time - b.time)
+    return bars.map(toCandle).sort((a, b) => a.time - b.time)
   })
 }
 
@@ -122,10 +151,18 @@ const POSITIONS_TTL = 5_000
 
 /** Subset of Alpaca's account object we use (numeric fields are strings). */
 interface AlpacaAccount {
+  id: string
+  status: string
+  trading_blocked: boolean
+  account_blocked: boolean
   equity: string
   last_equity: string
   buying_power: string
   cash: string
+}
+
+export function fetchTradingAccount() {
+  return alpacaRequest<AlpacaAccount>(`${ALPACA_TRADING_URL}/v2/account`)
 }
 
 /**
@@ -134,7 +171,7 @@ interface AlpacaAccount {
  */
 export function fetchAccount(): Promise<PortfolioSummary> {
   return cached('account', ACCOUNT_TTL, async () => {
-    const a = await alpacaRequest<AlpacaAccount>(`${ALPACA_TRADING_URL}/v2/account`)
+    const a = await fetchTradingAccount()
     const equity = num(a.equity)
     const lastEquity = num(a.last_equity)
     const dayChange = equity - lastEquity
@@ -162,10 +199,14 @@ interface AlpacaPosition {
   unrealized_intraday_plpc: string
 }
 
+export function fetchTradingPositions() {
+  return alpacaRequest<AlpacaPosition[]>(`${ALPACA_TRADING_URL}/v2/positions`)
+}
+
 /** Fetch all open positions, mapped to the app's `Position` shape. */
 export function fetchPositions(): Promise<Position[]> {
   return cached('positions', POSITIONS_TTL, async () => {
-    const positions = await alpacaRequest<AlpacaPosition[]>(`${ALPACA_TRADING_URL}/v2/positions`)
+    const positions = await fetchTradingPositions()
     return (positions ?? []).map(toPosition)
   })
 }
@@ -243,6 +284,8 @@ const WRITE_INVALIDATES = ['orders:', 'account', 'positions', 'history:']
 
 /** One order as returned by Alpaca (numeric fields are strings). */
 interface AlpacaOrder {
+  client_order_id?: string
+  filled_at?: string | null
   id: string
   symbol: string
   side: string
@@ -259,6 +302,8 @@ interface AlpacaOrder {
 
 function toOrder(o: AlpacaOrder): Order {
   return {
+    clientOrderId: o.client_order_id,
+    filledAt: o.filled_at ?? null,
     id: o.id,
     symbol: o.symbol,
     side: o.side as OrderSide,
@@ -278,7 +323,7 @@ function toOrder(o: AlpacaOrder): Order {
  * Place a paper order. Alpaca expects every number as a string, and only accepts
  * `limit_price`/`stop_price` for the matching order type.
  */
-export async function placeOrder(input: OrderRequest): Promise<Order> {
+export async function placeOrder(input: OrderRequest, clientOrderId?: string): Promise<Order> {
   const body: Record<string, string> = {
     symbol: input.symbol,
     qty: String(input.qty),
@@ -286,6 +331,7 @@ export async function placeOrder(input: OrderRequest): Promise<Order> {
     type: input.type,
     time_in_force: input.timeInForce,
   }
+  if (clientOrderId) body.client_order_id = clientOrderId
   if (input.type === 'limit' && input.limitPrice !== undefined) {
     body.limit_price = String(input.limitPrice)
   }
@@ -304,14 +350,23 @@ export async function placeOrder(input: OrderRequest): Promise<Order> {
 /** List orders, newest first. `status` is Alpaca's `open` | `closed` | `all`. */
 export function fetchOrders(status: string, limit: number): Promise<Order[]> {
   return cached(`orders:${status}:${limit}`, ORDERS_TTL, async () => {
-    const url = new URL(`${ALPACA_TRADING_URL}/v2/orders`)
-    url.searchParams.set('status', status)
-    url.searchParams.set('limit', String(limit))
-    url.searchParams.set('direction', 'desc')
-
-    const orders = await alpacaRequest<AlpacaOrder[]>(url)
+    const orders = await fetchTradingOrders(status, limit)
     return (orders ?? []).map(toOrder)
   })
+}
+
+export function fetchTradingOrders(status: string, limit: number) {
+  const url = new URL(`${ALPACA_TRADING_URL}/v2/orders`)
+  url.searchParams.set('status', status)
+  url.searchParams.set('limit', String(limit))
+  url.searchParams.set('direction', 'desc')
+  return alpacaRequest<AlpacaOrder[]>(url)
+}
+
+export async function fetchOrderByClientId(clientId: string): Promise<Order> {
+  const url = new URL(`${ALPACA_TRADING_URL}/v2/orders:by_client_order_id`)
+  url.searchParams.set('client_order_id', clientId)
+  return toOrder(await alpacaRequest<AlpacaOrder>(url))
 }
 
 /** Fetch a single order by id (used to poll one order's status). */

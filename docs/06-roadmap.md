@@ -258,3 +258,24 @@ _News was dropped from scope (ADR-019); the nav slot it occupied is now Orders._
       callout from ADR-021, with a live link to the Netlify demo. Four screenshots
       (Watchlist, Portfolio, Chart, Markets) in `docs/screenshots/`, refreshed after
       the Phase 11 UI/accessibility polish so they match the current app.)_
+
+## AI research and autonomous PAPER extension
+
+The original dashboard remains intact. The extension now includes:
+
+- [x] Repository review and reusable provider boundaries.
+- [x] Validated market/technical/fundamental/news evidence.
+- [x] Structured AI research with runtime validation and supplied-news citations.
+- [x] Configurable scanner, deterministic market regime and weighted strategy.
+- [x] Independent risk limits, deterministic sizing and duplicate prevention.
+- [x] Fresh manual paper approval and shared Alpaca execution.
+- [x] SQLite immutable journal, durable order intents and reconciliation.
+- [x] AI Research dashboard, controls and stored explanations.
+- [x] Fill accounting, benchmark comparison and deterministic daily review.
+- [x] Opt-in local AUTO_PAPER scheduler with paused restart defaults.
+- [x] Offline archived-evidence replay using the same strategy/risk code.
+
+See [setup and operational limitations](10-ai-agent-setup.md). Provider entitlement checks and
+an explicitly configured paper session remain necessary before operational use. No live trading
+is supported. Historical data acquisition, corporate-action/fee attribution and realistic
+exchange fill simulation remain future enhancements, not claims of this replay engine.

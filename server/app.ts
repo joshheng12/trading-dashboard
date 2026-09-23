@@ -23,6 +23,8 @@ import {
 } from './alpaca'
 import { fetchClock, fetchIndices, fetchMovers, fetchSectors } from './markets'
 import { fetchStockStats } from './stats'
+import { collectEvidence } from './research/evidence'
+import { agentRoutes } from './agent/routes'
 
 /**
  * Backend-for-frontend (BFF).
@@ -42,6 +44,7 @@ import { fetchStockStats } from './stats'
  */
 
 export const app = new Hono()
+app.route('/api/agent', agentRoutes)
 
 /** Turn a thrown error into the right status + JSON body. */
 function fail(err: unknown): { status: number; body: { error: string } } {
@@ -60,6 +63,16 @@ const CHART_TIMEFRAME_IDS: ReadonlySet<string> = new Set<ChartTimeframeId>([
 ])
 
 app.get('/api/health', (c) => c.json({ ok: true }))
+
+// Research reads consume provider quota and are owner-only, unlike public demo reads.
+app.get('/api/research/evidence/:symbol', requireAuth, async (c) => {
+  try {
+    return c.json(await collectEvidence(c.req.param('symbol')))
+  } catch (err) {
+    const { status, body } = fail(err)
+    return c.json(body, status as 400 | 500 | 502)
+  }
+})
 
 // ---- Auth (gates the order writes only — ADR-024) --------------------------
 
@@ -265,7 +278,8 @@ function parseOrderRequest(input: unknown): { order?: OrderRequest; error?: stri
   if (!Number.isFinite(qty) || qty <= 0) return { error: '"qty" must be a positive number.' }
 
   const side = String(raw.side ?? '')
-  if (!ORDER_SIDES.has(side)) return { error: `"side" must be buy or sell (got ${side || 'none'}).` }
+  if (!ORDER_SIDES.has(side))
+    return { error: `"side" must be buy or sell (got ${side || 'none'}).` }
 
   const type = String(raw.type ?? '')
   if (!ORDER_TYPES.has(type)) {

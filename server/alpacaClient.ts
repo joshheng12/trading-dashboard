@@ -39,12 +39,30 @@ export async function alpacaRequest<T>(
   url: string | URL,
   init: { method?: string; body?: unknown } = {},
 ): Promise<T> {
+  const target = new URL(url)
+  if (
+    target.protocol !== 'https:' ||
+    target.username ||
+    target.password ||
+    target.port ||
+    !['data.alpaca.markets', 'paper-api.alpaca.markets'].includes(target.hostname)
+  ) {
+    throw new ProviderError(
+      500,
+      'Only official Alpaca market-data and PAPER endpoints are allowed.',
+    )
+  }
+  if (init.method && init.method !== 'GET' && target.hostname !== 'paper-api.alpaca.markets') {
+    throw new ProviderError(500, 'Trading writes require the Alpaca PAPER endpoint.')
+  }
   const { keyId, secretKey } = credentials()
   const { method = 'GET', body } = init
 
   let res: Response
   try {
     res = await fetch(url, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
       method,
       headers: {
         'APCA-API-KEY-ID': keyId,

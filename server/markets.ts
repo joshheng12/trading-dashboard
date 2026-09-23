@@ -115,7 +115,7 @@ export interface AlpacaSnapshotBar {
 export interface AlpacaSnapshot {
   dailyBar?: AlpacaSnapshotBar
   prevDailyBar?: AlpacaSnapshotBar
-  latestTrade?: { p: number }
+  latestTrade?: { p: number; t?: string }
 }
 
 export type SnapshotMap = Record<string, AlpacaSnapshot | undefined>
@@ -166,15 +166,16 @@ interface AlpacaClock {
 }
 
 /** Current US session state — drives the status pill and gates polling. */
-export function fetchClock(): Promise<MarketClock> {
-  return cached('markets:clock', CLOCK_TTL, async () => {
+export function fetchClock(fresh = false): Promise<MarketClock> {
+  const load = async () => {
     const clock = await alpacaRequest<AlpacaClock>(`${ALPACA_TRADING_URL}/v2/clock`)
     return {
-      isOpen: Boolean(clock.is_open),
+      isOpen: clock.is_open,
       nextOpen: clock.next_open ?? '',
       nextClose: clock.next_close ?? '',
     }
-  })
+  }
+  return fresh ? load() : cached('markets:clock', CLOCK_TTL, load)
 }
 
 // ---- Index cards ------------------------------------------------------------
@@ -261,9 +262,7 @@ interface AlpacaAsset {
  */
 function assetInfo(symbol: string): Promise<AlpacaAsset> {
   return cached(`asset:${symbol}`, ASSET_TTL, () =>
-    alpacaRequest<AlpacaAsset>(
-      `${ALPACA_TRADING_URL}/v2/assets/${encodeURIComponent(symbol)}`,
-    ),
+    alpacaRequest<AlpacaAsset>(`${ALPACA_TRADING_URL}/v2/assets/${encodeURIComponent(symbol)}`),
   )
 }
 

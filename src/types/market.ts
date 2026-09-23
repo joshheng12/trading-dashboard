@@ -155,6 +155,8 @@ export function isOrderOpen(status: OrderStatus): boolean {
 
 /** An order as returned by the BFF (Alpaca's string numbers already parsed). */
 export interface Order {
+  clientOrderId?: string
+  filledAt?: string | null
   id: string
   symbol: string
   side: OrderSide

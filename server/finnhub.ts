@@ -21,14 +21,14 @@ function requireKey(): string {
   return key
 }
 
-async function finnhub<T>(path: string, params: Record<string, string>): Promise<T> {
+export async function finnhub<T>(path: string, params: Record<string, string>): Promise<T> {
   const url = new URL(`${FINNHUB_BASE}${path}`)
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
   url.searchParams.set('token', requireKey())
 
   let res: Response
   try {
-    res = await fetch(url)
+    res = await fetch(url, { signal: AbortSignal.timeout(15_000) })
   } catch {
     throw new ProviderError(502, 'Upstream network error contacting Finnhub.')
   }
@@ -154,10 +154,17 @@ interface FinnhubMetricResponse {
   metric?: FinnhubMetrics
 }
 
+/** Shared raw financial evidence for both the chart header and research mapping. */
+export function fetchBasicFinancials(symbol: string): Promise<unknown> {
+  return cached(`basic-financials:${symbol}`, METRIC_TTL, () =>
+    finnhub<unknown>('/stock/metric', { symbol, metric: 'all' }),
+  )
+}
+
 /** Basic-financials fundamentals for one symbol (52W range, market cap, P/E, dividend yield). */
 export function fetchMetrics(symbol: string): Promise<Partial<StockStats>> {
   return cached(`metrics:${symbol}`, METRIC_TTL, async () => {
-    const data = await finnhub<FinnhubMetricResponse>('/stock/metric', { symbol, metric: 'all' })
+    const data = (await fetchBasicFinancials(symbol)) as FinnhubMetricResponse
     const m = data.metric ?? {}
     const million = (n: number | undefined) => (typeof n === 'number' ? n * 1_000_000 : undefined)
     return {
